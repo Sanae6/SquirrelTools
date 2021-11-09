@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestingApp", "TestingApp\TestingApp.csproj", "{120CD7A8-C382-49CE-B137-404E5BDDAA51}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SquirrelStuff", "SquirrelStuff\SquirrelStuff.csproj", "{6B6E0995-5A12-4322-B38C-BF3F37736414}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SquirrelVisualDisassembler", "SquirrelVisualDisassembler\SquirrelVisualDisassembler.csproj", "{C83F51FF-69C7-4868-B73B-8581DE208B0C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{120CD7A8-C382-49CE-B137-404E5BDDAA51}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{120CD7A8-C382-49CE-B137-404E5BDDAA51}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{120CD7A8-C382-49CE-B137-404E5BDDAA51}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{120CD7A8-C382-49CE-B137-404E5BDDAA51}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B6E0995-5A12-4322-B38C-BF3F37736414}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B6E0995-5A12-4322-B38C-BF3F37736414}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B6E0995-5A12-4322-B38C-BF3F37736414}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B6E0995-5A12-4322-B38C-BF3F37736414}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C83F51FF-69C7-4868-B73B-8581DE208B0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C83F51FF-69C7-4868-B73B-8581DE208B0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C83F51FF-69C7-4868-B73B-8581DE208B0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C83F51FF-69C7-4868-B73B-8581DE208B0C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
