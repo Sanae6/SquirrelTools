@@ -10,7 +10,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Graphviz" Version="2.38.0.2" />
         <PackageReference Include="Graphviz4Net" Version="3.0.2" />
     </ItemGroup>
 

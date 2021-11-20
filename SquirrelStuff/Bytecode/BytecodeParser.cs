@@ -6,10 +6,9 @@ using System.Text;
 namespace SquirrelStuff.Bytecode {
     public static class BytecodeParser {
         public const int Sqir = 0x53514952;
-        public static FunctionPrototype? Parse(BinaryReader reader) {
+        public static FunctionPrototype Parse(BinaryReader reader) {
             if (reader.ReadUInt16() != 0xFAFA) {
-                Console.WriteLine("grrrrr");
-                return null;
+                throw new Exception("Data provided is not a valid compiled Squirrel nut");
             }
 
             reader.AssertTag(Sqir, "SQIR tag");

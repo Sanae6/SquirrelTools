@@ -10,23 +10,27 @@ namespace TestingApp {
         private static void Main(string[] args) {
             BinaryReader binaryReader = new BinaryReader(new FileStream(args[0], FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
             FunctionPrototype root = BytecodeParser.Parse(binaryReader);
-
+            
             void PrintFunction(FunctionPrototype parent) {
                 Console.WriteLine(parent.Disassemble(showClosure: true));
             }
-
             PrintFunction(root);
-            ControlFlowGraph cfg = GraphGenerator.BuildControlFlowGraph(root);
-            Graph graph = GraphGenerator.GenerateGraph(cfg);
-            Console.WriteLine(graph.ToString());
 
-            DotExeRunner runner = new DotExeRunner();
-            runner.DotExecutablePath = Path.GetDirectoryName(FindExePath(runner.DotExecutable));
-            TextReader reader = runner.Run(writer => {
-                writer.WriteLine(graph.ToString());
-            }, "png:cairo");
-            File.WriteAllText($"{args[0]}.png", reader.ReadToEnd());
-            Console.WriteLine();
+            // Console.WriteLine(Decompiler.Decompile(root));
+            
+            
+
+            // ControlFlowGraph cfg = GraphGenerator.BuildControlFlowGraph(root);
+            // Graph graph = GraphGenerator.GenerateGraph(cfg);
+            // Console.WriteLine(graph.ToString());
+            //
+            // DotExeRunner runner = new DotExeRunner();
+            // runner.DotExecutablePath = Path.GetDirectoryName(FindExePath(runner.DotExecutable));
+            // TextReader reader = runner.Run(writer => {
+            //     writer.WriteLine(graph.ToString());
+            // }, "png:cairo");
+            // File.WriteAllText($"{args[0]}.png", reader.ReadToEnd());
+            // Console.WriteLine();
         }
 
         public static string FindExePath(string exe) {

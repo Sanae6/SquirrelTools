@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using Avalonia;
@@ -32,27 +33,37 @@ namespace SquirrelVisualDisassembler {
         public string CurrentDirectory;
 
         private MainWindowViewModel Model;
+        private ControlFlowGraph CurrentGraph;
         private readonly IHighlightingDefinition asmSyntax;
         
-        private ElementGenerator generator = new ElementGenerator();
         private TextEditor disassemblyEditor;
         private TextEditor decompilationEditor;
         private TextEditor graphEditor;
 
         public MainWindow() {
-            DataContext = Model = new MainWindowViewModel();
+            DataContext = Model = MainWindowViewModel.Instance;
             using (XmlTextReader reader = new XmlTextReader("sqasm.xshd")) {
                 asmSyntax = HighlightingLoader.Load(reader, HighlightingManager.Instance);
             }
+            HighlightingManager.Instance.RegisterHighlighting("sqasm", Array.Empty<string>(), asmSyntax);
 
             AvaloniaXamlLoader.Load(this);
-            disassemblyEditor = this.FindControl<TextEditor>("DisassemblyEditor");
+            disassemblyEditor = GetEditor("DisassemblyEditor");
+            graphEditor = GetEditor("GraphEditor");
+            decompilationEditor = GetEditor("DecompileEditor");
+            Model.OnDisassemblyJumpClicked += OnDisassemblyJump;
+            disassemblyEditor.TextArea.TextView.ElementGenerators.Add(new JumpGenerator());
+        }
 
-            disassemblyEditor.Background = Brushes.Transparent;
-            disassemblyEditor.TextArea.TextView.ElementGenerators.Add(generator);
-            HighlightingManager.Instance.RegisterHighlighting("sqasm", new string[] {".nut"}, asmSyntax);
-            disassemblyEditor.SyntaxHighlighting = asmSyntax;
-            disassemblyEditor.Options.ShowTabs = true;
+        private void OnDisassemblyJump(int line) {
+            disassemblyEditor.ScrollToLine(line);
+        }
+
+        private TextEditor GetEditor(string name) {
+            TextEditor editor = this.FindControl<TextEditor>(name);
+            editor.Background = Brushes.Transparent;
+            editor.SyntaxHighlighting = asmSyntax;
+            return editor;
         }
 
         private void FileTreeOnSelectedItemChanged(object? sender, SelectionChangedEventArgs e) {
@@ -70,11 +81,9 @@ namespace SquirrelVisualDisassembler {
                 }
                 catch (Exception e) {
                     // dialog.Show(this, $"Failed to open {item.Name}.\n {e}", "Error!", MessageBoxButton.OK, MessageBoxImage.Error);
-                    // throw;
+                    Console.WriteLine(e);
                     return;
                 }
-
-                if (function == null) return; // don't open it if it fails
 
                 CurrentFile = new FunctionTextBinding {
                     File = item,
@@ -86,21 +95,21 @@ namespace SquirrelVisualDisassembler {
                     disassemblyEditor.Text = Model.DisassemblyText = function.Disassemble(showClosure: true);
                 }
                 catch (Exception ex) {
-                    Model.DisassemblyText = $"Disassembly failed, ran into an exception: \n{ex}";
+                    disassemblyEditor.Text = $"Disassembly failed, ran into an exception: \n{ex}";
                 }
 
                 try {
-                    Model.DecompileText = ""; // DecompilerDecompile(function);
+                    decompilationEditor.Text = ""; // DecompilerDecompile(function);
                 }
                 catch (Exception ex) {
                     Model.DecompileText = $"Decompilation failed, ran into an exception: \n{ex}";
                 }
 
                 try {
-                    Model.FlowText = GraphGenerator.GenerateGraph(GraphGenerator.BuildControlFlowGraph(function)).ToString();
+                    graphEditor.Text = GraphGenerator.GenerateGraph(CurrentGraph = GraphGenerator.BuildControlFlowGraph(function)).ToString();
                 }
                 catch (Exception ex) {
-                    Model.FlowText = $"Graph generation failed, ran into an exception: \n{ex}";
+                    graphEditor.Text = $"Graph generation failed, ran into an exception: \n{ex}";
                 }
             } else {
                 Dispatcher.UIThread.Post(() => LoadFile(item));
@@ -188,7 +197,7 @@ namespace SquirrelVisualDisassembler {
         }
 
         private void OnChanged(object sender, FileSystemEventArgs e) {
-            if (string.Equals(Path.GetFullPath(CurrentFile?.File.Path).TrimEnd(Path.PathSeparator),
+            if (string.Equals(Path.GetFullPath(CurrentFile.File.Path).TrimEnd(Path.PathSeparator),
                 Path.GetFullPath(e.FullPath).TrimEnd(Path.PathSeparator),
                 StringComparison.InvariantCultureIgnoreCase))
                 LoadFile(CurrentFile.File);
@@ -200,10 +209,12 @@ namespace SquirrelVisualDisassembler {
     }
 
     public class MainWindowViewModel : INotifyPropertyChanged {
+        private static MainWindowViewModel? instance;
         private List<Item> items;
         private string disassemblyText = "Select a file to disassemble it";
         private string decompileText = "Select a file to decompile it";
         private string flowText = "Select a file to view its control flow";
+        public static MainWindowViewModel Instance => instance ??= new MainWindowViewModel();
         public string DisassemblyText {
             get => disassemblyText;
             set {
@@ -232,7 +243,13 @@ namespace SquirrelVisualDisassembler {
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Items)));
             }
         }
+        public event Action<int>? OnDisassemblyJumpClicked;
+        public Encoding Encoding => Encoding.UTF8;
         public event PropertyChangedEventHandler? PropertyChanged;
+
+        public void DisassemblyJumpClick(int line) {
+            OnDisassemblyJumpClicked?.Invoke(line);
+        }
     }
 
     public class FunctionTextBinding {
@@ -262,11 +279,11 @@ namespace SquirrelVisualDisassembler {
 
         public override VisualLineElement ConstructElement(int offset)
         {
-            int pos = controls.BinarySearch(new KeyValuePair<int, IControl>(offset, null), this);
+            int pos = controls.BinarySearch(new KeyValuePair<int, IControl>(offset, null!), this);
             if (pos >= 0)
                 return new InlineObjectElement(0, controls[pos].Value);
             else
-                return null;
+                return null!;
         }
 
         int IComparer<KeyValuePair<int, IControl>>.Compare(KeyValuePair<int, IControl> x, KeyValuePair<int, IControl> y)

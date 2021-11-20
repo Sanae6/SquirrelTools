@@ -96,12 +96,18 @@ namespace SquirrelStuff.Bytecode {
             return prototype;
         }
 
-        public LocalVar? GetLocalVar(int location) {
-            return LocalVars.FirstOrDefault(local => local.Pos == location);
+        public LocalVar? GetLocalVar(int location, int ip) {
+            ip++;
+            return LocalVars.FirstOrDefault(local => {
+                // Console.WriteLine($"Trying {local.Name}: {location}=={local.Pos} {local.StartOp}<{ip}<{local.EndOp}");
+                return local.Pos == location && local.IsDefinedAt(ip);
+            });
         }
+        
+        public SquirrelObject? GetStackNameObject(int location, int ip) => GetLocalVar(location, ip)?.Name ?? Parameters.ElementAtOrDefault(location);
 
-        public string GetStackName(int location) {
-            return GetLocalVar(location)?.Name.ToString() ?? Parameters.ElementAtOrDefault(location)?.ToString() ?? $"$stackVar{location}";
+        public string GetStackName(int location, int ip) {
+            return GetStackNameObject(location, ip)?.ToString() ?? $"$stackVar{location}";
         }
 
         public class LocalVar {
@@ -109,6 +115,10 @@ namespace SquirrelStuff.Bytecode {
             public uint StartOp;
             public uint EndOp;
             public uint Pos;
+
+            public bool StartsAt(int ip) => ++ip == StartOp;
+            public bool IsDefinedAt(int ip) => StartOp <= ip && ip <= EndOp;
+            public override string ToString() => Name.ToString();
         }
 
         public enum OuterType {
@@ -131,6 +141,7 @@ namespace SquirrelStuff.Bytecode {
             public int Position;
             public Opcodes Opcode;
             public int Argument1;
+            public float Argument1d => BitConverter.ToSingle(BitConverter.GetBytes(Argument1));
             public byte Argument0;
             public byte Argument2;
             public byte Argument3;

@@ -69,8 +69,34 @@ namespace SquirrelStuff.Graphing {
         public readonly ControlFlowGraph Owner;
         public FunctionPrototype Prototype => Owner.Prototype;
         public Dictionary<int, ControlFlowGraph> Closures = new Dictionary<int, ControlFlowGraph>();
-        public Block? Next;
-        public Block? Branch;
+        public HashSet<Block> Parents = new HashSet<Block>();
+        public FunctionPrototype.Instruction[] Instructions => Prototype.Instructions[FirstIndex..(LastIndex + 1)];
+        public int? NextIndex => next?.FirstIndex;
+        public int? BranchIndex => branch?.FirstIndex;
+        private Block? next;
+        private Block? branch;
+        public Block? Next {
+            get => next;
+            set {
+                if (value == null) next?.Parents.Remove(this);
+                else {
+                    next?.Parents.Remove(this);
+                    value.Parents.Add(this);
+                }
+                next = value;
+            }
+        }
+        public Block? Branch {
+            get => branch;
+            set {
+                if (value == null) branch?.Parents.Remove(this);
+                else {
+                    branch?.Parents.Remove(this);
+                    value.Parents.Add(this);
+                }
+                branch = value;
+            }
+        }
         public int FirstIndex;
         public int LastIndex;
         public FunctionPrototype.Instruction First => Prototype.Instructions[FirstIndex];

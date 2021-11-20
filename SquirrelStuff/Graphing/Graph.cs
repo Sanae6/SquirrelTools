@@ -14,30 +14,32 @@ namespace SquirrelStuff.Graphing {
              2 [label="2--1"];
             }
          */
-        private record Edge(int Head, int Tail, string Label);
+        private record Edge(string Head, string Tail, string Label);
 
-        private Dictionary<int, string> vertices = new Dictionary<int, string>();
+        private Dictionary<string, string> vertices = new Dictionary<string, string>();
         private List<Edge> edges = new List<Edge>();
         private readonly string name;
 
         public Graph(string name) {
             this.name = name;
         }
-        public void AddVertex(int index, string label) => vertices.TryAdd(index, label);
+        public void AddVertex(string index, string label) => vertices.TryAdd(index, label);
 
-        public void AddEdge(int parent, int child, string label = "") => edges.Add(new Edge(parent, child, label)); 
+        public void AddEdge(string parent, string child, string label = "") => edges.Add(new Edge(parent, child, label)); 
 
         public override string ToString() {
             StringBuilder builder = new StringBuilder();
             const string indent = "    ";
             builder.AppendLine($"digraph {name} {{");
-            builder.AppendLine($@"{indent}node [fontsize = ""15""]");
-            builder.AppendLine($@"{indent}edge [fontsize = ""10""]");
-            foreach ((int index, string label) in vertices) {
-                builder.AppendLine($@"{indent}{index} [label=""{label}""];");
+            builder.AppendLine($@"{indent}node [fontsize = ""20"", fontname=""Comic Sans MS"", shape=""plaintext""]");
+            builder.AppendLine($@"{indent}edge [fontsize = ""14""]");
+            builder.AppendLine($@"{indent}rankdir=LR");
+            foreach ((string index, string label) in vertices) {
+                builder.AppendLine($@"{indent}{index} [label={label}];");
             }
             foreach (Edge edge in edges) {
-                builder.AppendLine($@"{indent}{edge.Head} -> {edge.Tail} [label=""{edge.Label}""];");
+                string newLabel = edge.Label.Replace("\n", "\\n").Replace("\r", "").Replace("\"","\\\"");
+                builder.AppendLine($@"{indent}{edge.Head} -> {edge.Tail} [label=""{newLabel}""];");
             }
             builder.AppendLine("}");
             return builder.ToString();

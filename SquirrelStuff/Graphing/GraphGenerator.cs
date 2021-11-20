@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using SquirrelStuff.Analysis;
 using SquirrelStuff.Bytecode;
-
-// most code is taken from https://github.com/krzys-h/UndertaleModTool/blob/master/UndertaleModLib/Decompiler/Decompiler.cs
-// rewritten to work with squirrel bytecode
 
 namespace SquirrelStuff.Graphing {
     public class GraphGenerator {
@@ -33,10 +32,10 @@ namespace SquirrelStuff.Graphing {
             ControlFlowGraph graph = new ControlFlowGraph(prototype);
             Block root = graph.Root;
             Block? current = root;
-            for (int ip = 0; ip < prototype.Instructions.Length; ip++) {
+            for (int ip = 0; ip < prototype.Instructions.Length;) {
                 // Instruction? prev = ip > 0 ? prototype.Instructions[ip - 1] : null;
                 FunctionPrototype.Instruction inst = prototype.Instructions[ip];
-                FunctionPrototype.Instruction? next = ip < prototype.Instructions.Length - 1 ? prototype.Instructions[ip + 1] : null;
+                // FunctionPrototype.Instruction? next = ip < prototype.Instructions.Length - 1 ? prototype.Instructions[ip + 1] : null;
 
                 if (graph.HasBlock(ip)) {
                     Block block = graph.GetBlock(ip);
@@ -48,37 +47,44 @@ namespace SquirrelStuff.Graphing {
                     current = block;
                 }
 
-                if (current is null) current = graph.NewBlock(ip);
+                current ??= graph.NewBlock(ip);
                 current.LastIndex = ip;
-                // Console.WriteLine($"{ip} - {current.FirstIndex}/{current.LastIndex}");
 
-                // int arg1() => inst.Argument1
-
+                int orIp = ip++; // to simulate jumps correctly, the ip must be one instruction further (see squirrel3/sqvm.cpp:Execute())
+                int address = ip + inst.Argument1;
                 switch (inst.Opcode) {
                     case Opcodes.Jmp: {
-                        int addr = ip + inst.Argument1 + 1;
-                        Block block = graph.GetBlock(addr, ip);
+                        if (address == ip) continue;
+                        // Console.WriteLine($"{ip} {inst.Opcode} n {address}");
+                        Block block = graph.GetBlock(address, orIp);
                         current.Next = block;
                         current.Branch = null;
-                        // current.LastIndex = ip;
                         current = null;
                         break;
                     }
                     case Opcodes.JCmp:
                     case Opcodes.Jz: {
-                        int addr = ip + inst.Argument1 + 1;
-                        //next?.Opcode == Opcodes.Jmp ? addr + 1 : 
-                        Block nextBlock = graph.GetBlock(ip + 1, ip);
-                        Block branchBlock = graph.GetBlock(addr, ip);
+                        if (address == ip) continue;
+                        // Console.WriteLine($"{ip} {inst.Opcode} n {ip} b {address}");
+                        Block nextBlock = graph.GetBlock(ip, ip);
+                        Block branchBlock = graph.GetBlock(address, ip);
                         current.Next = nextBlock;
                         current.Branch = branchBlock;
                         current = null;
                         break;
                     }
+                    case Opcodes.ForEach: {
+                        
+                        break;
+                    }
+                    case Opcodes.Return: {
+                        current = null;
+                        break;
+                    }
                     case Opcodes.Closure: // to see closure branches
                         ControlFlowGraph flowGraph = BuildControlFlowGraph(prototype.Functions[inst.Argument1]);
-                        current.Closures.Add(ip, flowGraph);
-                        graph.Closures.Add((ip, flowGraph));
+                        current.Closures.Add(orIp, flowGraph);
+                        graph.Closures.Add((orIp, flowGraph));
                         break;
                 }
             }
@@ -89,28 +95,31 @@ namespace SquirrelStuff.Graphing {
                 if (block.Branch == block) block.Branch = null;
             }
 
-            bool NotLastBlock(int last) =>/* last < prototype.Instructions.Length - 1 && */graph.HasBlock(last + 1);
+            bool NotLastBlock(int last) => graph.HasBlock(last + 1);
             foreach (Block block in graph.Blocks.Values.Distinct()) {
-                if (block.Next == null && NotLastBlock(block.LastIndex)) block.Next = graph.GetBlockIncluded(block.LastIndex + 1);
+                if (block.Next == null && NotLastBlock(block.LastIndex) && prototype.Instructions[block.LastIndex].Opcode != Opcodes.Return) block.Next = graph.GetBlockIncluded(block.LastIndex + 1);
             }
 
-            // foreach (Block block in graph.Blocks.Values.Distinct()) {
-            //     Console.WriteLine($"[{block.FirstIndex}/{block.LastIndex}]");
-            // }
-            //
-            // Console.WriteLine();
-            // foreach (Block block in graph.Blocks.Values.Distinct()) {
-            //     if (block.Next is { } next) Console.WriteLine($"[{block.FirstIndex}/{block.LastIndex}] n-> [{next.FirstIndex}/{next.LastIndex}]");
-            //     if (block.Branch is { } branch) Console.WriteLine($"[{block.FirstIndex}/{block.LastIndex}] b-> [{branch.FirstIndex}/{branch.LastIndex}]");
-            // }
+            List<Block> marked = new List<Block>();
+            foreach (Block block in graph.Blocks.Values.Distinct()) {
+                if (block.Parents.Count == 0 && block.FirstIndex != 0) {
+                    block.Next = null;
+                    block.Branch = null;
+                    marked.Add(block);
+                }
+            }
+
+            foreach (KeyValuePair<int, Block> kvp in graph.Blocks.ToArray()) {
+                if (marked.Any(block => block == kvp.Value)) graph.Blocks.Remove(kvp.Key);
+            }
 
             return graph;
         }
 
-        public static Graph GenerateGraph(ControlFlowGraph graph) {
+        public static Graph GenerateGraph(ControlFlowGraph graph, int digits = -1) {
+            if (digits == -1) digits = graph.Prototype.MaxLineDigits().ToString().Length;
             Graph g = new Graph(graph.Prototype.Name.ToString());
 
-            // Dictionary<Block, int> blockIndex = new Dictionary<Block, int>();
             HashSet<Block> AllBlocks = new HashSet<Block>();
             Dictionary<ControlFlowGraph, int> bases = new Dictionary<ControlFlowGraph, int>();
 
@@ -127,9 +136,23 @@ namespace SquirrelStuff.Graphing {
             SetBases((vertBase, graph));
 
             void AddBlockClosure(ControlFlowGraph curGraph) {
-                // Console.WriteLine(curGraph.UniqueBlocks.Count);
                 foreach (Block block in curGraph.UniqueBlocks.Where(block => AllBlocks.Add(block))) {
-                    g.AddVertex(GetIndex(block), $"{(block.FirstIndex == 0 ? block.Prototype.Name.ToString(true) + "\\n" : "")}{block.FirstIndex}-{block.LastIndex}");
+                    StringBuilder builder = new StringBuilder();
+                    builder.Append(@"<<TABLE BORDER=""0"" CELLBORDER=""1"" CELLSPACING=""0"">");
+                    if (block.FirstIndex == 0) builder.Append($"<TR><TD COLSPAN=\"3\">{block.Prototype.Name.ToString(true)}</TD></TR>");
+                    else if (block.Parents.Count == 0) builder.Append($"<TR><TD COLSPAN=\"3\">Dead code from {block.Prototype.Name.ToString(true)}</TD></TR>");
+                    for (int i = block.FirstIndex; i <= block.LastIndex; i++) {
+                        // builder.Append($@"<TR><TD PORT=""{i}"">{i.ToString().PadLeft(digits, '0')} </TD></TR>");
+                        builder.AppendLine();
+                        builder.Append($@"<TR><TD PORT=""L{i}"">{i.ToString().PadLeft(digits, '0')}</TD><TD>{curGraph.Prototype.Instructions[i].ToString(curGraph.Prototype, true, false)}</TD><TD PORT=""R{i}"">{
+                            curGraph.Prototype.Instructions[i].ToString(curGraph.Prototype, false, true)
+                                .Replace("<", "&lt;").Replace(">", "&gt;")
+                                // .Replace("[", "&#91;").Replace("]", "&#93;")
+                                .Replace("&", "&amp;")
+                        }</TD></TR>");
+                    }
+                    builder.Append("</TABLE>>");
+                    g.AddVertex($"struct{GetIndex(block)}", builder.ToString());
                 }
 
                 foreach ((int _, var closureGraph) in curGraph.Closures) {
@@ -141,13 +164,11 @@ namespace SquirrelStuff.Graphing {
 
             foreach (Block block in AllBlocks) {
                 if (block.Next is not null) {
-                    // Console.WriteLine($"{block.Owner} {GetIndex(block)}->{GetIndex(block.Next)}");
-                    g.AddEdge(GetIndex(block), GetIndex(block.Next), $"{block.FirstIndex}->{block.Next.FirstIndex}");
+                    g.AddEdge($"struct{GetIndex(block)}:R{block.LastIndex}", $"struct{GetIndex(block.Next)}:L{block.NextIndex}", $"{block.LastIndex}->{block.Next.FirstIndex}");
                 }
 
                 if (block.Branch is not null) {
-                    // Console.WriteLine($"{block.Owner} {GetIndex(block)}-b>{GetIndex(block.Branch)}");
-                    g.AddEdge(GetIndex(block), GetIndex(block.Branch), $"Branch\\n{block.FirstIndex}->{block.Branch.FirstIndex}");
+                    g.AddEdge($"struct{GetIndex(block)}:R{block.LastIndex}", $"struct{GetIndex(block.Branch)}:L{block.BranchIndex}", $"Branch\\n{block.LastIndex}->{block.Branch.FirstIndex}");
                 }
             }
 
@@ -155,10 +176,8 @@ namespace SquirrelStuff.Graphing {
                 foreach ((int address, ControlFlowGraph flowGraph) in curGraph.Closures) {
                     Block parent = curGraph.GetBlockIncluded(address);
                     Block child = flowGraph.Root;
-                    g.AddEdge(GetIndex(parent), GetIndex(child), $"{curGraph.Prototype.Name}({parent.FirstIndex}-{parent.LastIndex})->" +
-                                                                 $"{flowGraph.Prototype.Name}({child.FirstIndex}-{child.LastIndex})");
-                    // g.AddEdge(blockIndex[parent], blockIndex[child], false, label: $"{curGraph.Prototype.Name}[{parent.FirstIndex}-{parent.LastIndex}]->" +
-                    //                                                                $"{graphClosure.Graph.Prototype.Name}[{child.FirstIndex}-{child.LastIndex}]");
+                    g.AddEdge($"struct{GetIndex(parent)}:R{address}", $"struct{GetIndex(child)}", $"{curGraph.Prototype.Name}({parent.FirstIndex}-{parent.LastIndex})->" +
+                                                                                                            $"{flowGraph.Prototype.Name}({child.FirstIndex}-{child.LastIndex})");
                     AddClosureEdge(flowGraph);
                 }
             }

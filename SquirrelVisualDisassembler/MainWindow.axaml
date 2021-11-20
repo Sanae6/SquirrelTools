@@ -32,23 +32,38 @@
                             Name = "DisassemblyEditor"
                             FontFamily="Consolas"
                             SyntaxHighlighting="sqasm"
+                            IsReadOnly="True"
+                            VerticalScrollBarVisibility="Visible"
+                            HorizontalScrollBarVisibility="Auto"
+                            Encoding="{Binding Encoding}"
                         />
-                        <!-- IsReadOnly="True" -->
-                        <!-- VerticalScrollBarVisibility="Visible" -->
-                        <!-- HorizontalScrollBarVisibility="Auto" -->
                     </Grid>
                 </TabItem>
-                <TabItem Header="Decompiled">
-                    <TextBox FontFamily="Consolas" Name="DecompileBox" IsReadOnly="True"
-                             Text="{Binding DecompileText}"
-                             ScrollViewer.VerticalScrollBarVisibility="Visible"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto" />
-                </TabItem>
                 <TabItem Header="Control Flow Graph">
-                    <TextBox FontFamily="Consolas" Name="GraphBox" IsReadOnly="True"
-                             Text="{Binding FlowText}"
-                             ScrollViewer.VerticalScrollBarVisibility="Visible"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+                    <Grid>
+                        <avaloniaEdit:TextEditor
+                            Name = "GraphEditor"
+                            FontFamily="Consolas"
+                            SyntaxHighlighting="sqasm"
+                            IsReadOnly="True"
+                            VerticalScrollBarVisibility="Visible"
+                            HorizontalScrollBarVisibility="Auto"
+                            Encoding="{Binding Encoding}"
+                        />
+                    </Grid>
+                </TabItem>
+                <TabItem Header="(TODO) Decompiled">
+                    <Grid>
+                        <avaloniaEdit:TextEditor
+                            Name = "DecompileEditor"
+                            FontFamily="Consolas"
+                            SyntaxHighlighting="sqasm"
+                            IsReadOnly="True"
+                            VerticalScrollBarVisibility="Visible"
+                            HorizontalScrollBarVisibility="Auto"
+                            Encoding="{Binding Encoding}"
+                        />
+                    </Grid>
                 </TabItem>
             </TabControl>
         </Grid>

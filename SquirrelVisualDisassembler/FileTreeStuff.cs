@@ -4,8 +4,8 @@ using System.Linq;
 
 namespace SquirrelVisualDisassembler {
     public class Item {
-        public string Name { get; set; }
-        public string Path { get; set; }
+        public string Name { get; set; } = null!;
+        public string Path { get; set; } = null!;
     }
 
     public class FileItem : Item { }

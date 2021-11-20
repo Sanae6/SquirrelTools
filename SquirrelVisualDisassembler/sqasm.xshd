@@ -16,13 +16,17 @@
                 <Span begin="\\" end="."/>
             </RuleSet>
         </Span>
-
+        
         <Keywords fontWeight="bold" foreground="Blue">
             <Word>Jmp</Word>
             <Word>Jz</Word>
             <Word>JCmp</Word>
             <!-- ... -->
         </Keywords>
+        
+        <Rule foreground="DarkGreen">
+            \[[0-9]+(?: line [0-9]+)?\]
+        </Rule>
 
         <!-- Digits -->
         <Rule foreground="DarkBlue">
