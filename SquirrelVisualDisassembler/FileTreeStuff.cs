@@ -8,7 +8,9 @@ namespace SquirrelVisualDisassembler {
         public string Path { get; set; } = null!;
     }
 
-    public class FileItem : Item { }
+    public class FileItem : Item {
+        public FunctionTextBinding? Binding;
+    }
     
     public class DirectoryItem : Item {
         public List<Item> Items { get; set; }

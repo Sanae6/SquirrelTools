@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 using Avalonia;
@@ -28,9 +29,29 @@ namespace SquirrelVisualDisassembler {
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     public class MainWindow : Window {
-        private FunctionTextBinding CurrentFile;
+        private FunctionTextBinding? ftb;
+        private FunctionTextBinding? CurrentFile {
+            get => ftb;
+            set {
+                ftb = value;
+                if (ftb == null) {
+                    Title = DefaultTitle;
+                    disassemblyEditor.Text = "";
+                    decompilationEditor.Text = "";
+                    graphEditor.Text = "";
+                    return;
+                }
+                
+                disassemblyEditor.Text = ftb.Disassembly;
+                decompilationEditor.Text = ftb.Decompilation;
+                graphEditor.Text = ftb.FlowGraph;
+                Title = $"{DefaultTitle} - {ftb.File.Name}";
+            }
+        }
         private const string DefaultTitle = "Squirrel 3.1 Disassembler";
         public string CurrentDirectory;
+
+        private SemaphoreSlim TreeSemaphore = new SemaphoreSlim(1, 1);
 
         private MainWindowViewModel Model;
         private ControlFlowGraph CurrentGraph;
@@ -39,6 +60,7 @@ namespace SquirrelVisualDisassembler {
         private TextEditor disassemblyEditor;
         private TextEditor decompilationEditor;
         private TextEditor graphEditor;
+        private List<FileItem> itemsFiles;
 
         public MainWindow() {
             DataContext = Model = MainWindowViewModel.Instance;
@@ -52,7 +74,8 @@ namespace SquirrelVisualDisassembler {
             graphEditor = GetEditor("GraphEditor");
             decompilationEditor = GetEditor("DecompileEditor");
             Model.OnDisassemblyJumpClicked += OnDisassemblyJump;
-            disassemblyEditor.TextArea.TextView.ElementGenerators.Add(new JumpGenerator());
+            // disassemblyEditor.TextArea.TextView.ElementGenerators.Add(new ElementGenerator());
+            this.AttachDevTools();
         }
 
         private void OnDisassemblyJump(int line) {
@@ -63,78 +86,109 @@ namespace SquirrelVisualDisassembler {
             TextEditor editor = this.FindControl<TextEditor>(name);
             editor.Background = Brushes.Transparent;
             editor.SyntaxHighlighting = asmSyntax;
+            editor.Encoding = Encoding.UTF8;
+            
+            // editor.FontFamily = FontFamily.;
             return editor;
         }
 
         private void FileTreeOnSelectedItemChanged(object? sender, SelectionChangedEventArgs e) {
-            if (e.AddedItems.Count == 1 && e.AddedItems[0] is FileItem item) LoadFile(item);
+            if (e.AddedItems.Count == 1 && e.AddedItems[0] is FileItem {Binding: {} binding}) CurrentFile = binding;
         }
 
-        private void LoadFile(FileItem item) {
-            if (!File.Exists(item.Path)) return;
+        private FunctionTextBinding? LoadFile(FileItem item) {
+            if (!File.Exists(item.Path)) return null;
 
-            if (Dispatcher.UIThread.CheckAccess()) {
-                using BinaryReader reader = new BinaryReader(File.OpenRead(item.Path));
-                FunctionPrototype function;
-                try {
-                    function = BytecodeParser.Parse(reader);
-                }
-                catch (Exception e) {
-                    // dialog.Show(this, $"Failed to open {item.Name}.\n {e}", "Error!", MessageBoxButton.OK, MessageBoxImage.Error);
-                    Console.WriteLine(e);
-                    return;
-                }
-
-                CurrentFile = new FunctionTextBinding {
-                    File = item,
-                    Prototype = function
-                };
-
-                Title = $"{DefaultTitle} - {CurrentFile.File.Name}";
-                try {
-                    disassemblyEditor.Text = Model.DisassemblyText = function.Disassemble(showClosure: true);
-                }
-                catch (Exception ex) {
-                    disassemblyEditor.Text = $"Disassembly failed, ran into an exception: \n{ex}";
-                }
-
-                try {
-                    decompilationEditor.Text = ""; // DecompilerDecompile(function);
-                }
-                catch (Exception ex) {
-                    Model.DecompileText = $"Decompilation failed, ran into an exception: \n{ex}";
-                }
-
-                try {
-                    graphEditor.Text = GraphGenerator.GenerateGraph(CurrentGraph = GraphGenerator.BuildControlFlowGraph(function)).ToString();
-                }
-                catch (Exception ex) {
-                    graphEditor.Text = $"Graph generation failed, ran into an exception: \n{ex}";
-                }
-            } else {
-                Dispatcher.UIThread.Post(() => LoadFile(item));
+            using BinaryReader reader = new BinaryReader(File.OpenRead(item.Path));
+            FunctionPrototype function;
+            try {
+                function = BytecodeParser.Parse(reader);
             }
+            catch (Exception) {
+                return null;
+            }
+
+            FunctionTextBinding binding = new FunctionTextBinding {
+                File = item,
+                Prototype = function
+            };
+
+            try {
+                binding.Disassembly = function.Disassemble(showClosure: true);
+            }
+            catch (Exception ex) {
+                binding.Disassembly = $"Disassembly failed, ran into an exception: \n{ex}";
+            }
+
+            try {
+                binding.Decompilation = Decompiler.Decompile(function);
+            }
+            catch (Exception ex) {
+                binding.Decompilation = $"Decompilation failed, ran into an exception: \n{ex}";
+            }
+
+            try {
+                binding.FlowGraph = GraphGenerator.GenerateGraph(CurrentGraph = GraphGenerator.BuildControlFlowGraph(function)).ToString();
+            }
+            catch (Exception ex) {
+                binding.FlowGraph = $"Graph generation failed, ran into an exception: \n{ex}";
+            }
+
+            return item.Binding = binding;
         }
 
-        public void UpdateTree(Action extra = null!) {
-            if (Dispatcher.UIThread.CheckAccess()) {
+        private static IEnumerable<FileItem> Flatten(IEnumerable<Item> e) {
+            IEnumerable<Item> items = e as Item[] ?? e.ToArray();
+            IEnumerable<DirectoryItem> dirs = items.Where(item => item is DirectoryItem).Cast<DirectoryItem>();
+            IEnumerable<FileItem> files = items.Where(item => item is FileItem).Cast<FileItem>();
+            return dirs.SelectMany(dir => Flatten(dir.Items)).Concat(files);
+        }
+
+        public void UpdateTree(Action? extra = null!) {
+            // if (Dispatcher.UIThread.CheckAccess()) {
+            //     try {
+            //         Update();
+            //     }
+            //     catch (Exception e) {
+            //         Console.WriteLine(e);
+            //         throw;
+            //     }
+            //
+            //     return;
+            // }
+
+            async Task Update() {
+                await TreeSemaphore.WaitAsync();
                 try {
-                    Update();
-                }
-                catch (Exception e) {
-                    Console.WriteLine(e);
-                    throw;
-                }
+                    Model.Items = ItemProvider.GetItems(CurrentDirectory);
+                    extra?.Invoke();
+                    itemsFiles = Flatten(Model.Items).ToList();
+                    Model.Progress = 0;
+                    double done = 0;
+                    // Console.WriteLine($"{files.Count} {100}");
+                    Task[] tasks = itemsFiles.Select(file => {
+                        // Thread.Sleep(50);
+                        return Task.Run(() => {
+                            try {
+                                // Console.WriteLine($"Loading {file.Name} {done}/{files.Count}");
+                                LoadFile(file);
+                            } finally {
+                                Model.Progress = 100.0 / itemsFiles.Count * ++done;
+                                // Console.WriteLine($"Done {file.Name} {done}/{files.Count}");
+                            }
 
-                return;
+                        });
+                    }).ToArray();
+                    Task.WaitAll(tasks);
+                    Model.Progress = 100.0;
+                } finally {
+                    TreeSemaphore.Release(1);
+                }
             }
 
-            void Update() {
-                Model.Items = ItemProvider.GetItems(CurrentDirectory);
-                extra?.Invoke();
-            }
+            Task.Run(Update);
 
-            Dispatcher.UIThread.Post((Action) Update);
+            // Dispatcher.UIThread.Post((Action) Update);
         }
 
         private async Task<bool> AskForNewDirectory() {
@@ -170,7 +224,7 @@ namespace SquirrelVisualDisassembler {
 
             watcher.Filter = "*.nut";
             watcher.IncludeSubdirectories = true;
-            watcher.EnableRaisingEvents = false;
+            watcher.EnableRaisingEvents = true;
 
             Console.WriteLine($"Open folder is {CurrentDirectory}");
             UpdateTree();
@@ -183,12 +237,13 @@ namespace SquirrelVisualDisassembler {
         private void OnRenamed(object sender, RenamedEventArgs e) {
             UpdateTree(() => {
                 if (CurrentFile?.File.Path == e.OldFullPath) {
-                    LoadFile((FileItem) Model.Items.First(item => item.Path == e.FullPath));
+                    CurrentFile = ((FileItem) Model.Items.First(item => item.Path == e.FullPath)).Binding; // probably null?
                 }
             });
         }
 
         private void OnDeleted(object sender, FileSystemEventArgs e) {
+            Console.WriteLine($"something was deleted {e.FullPath}");
             UpdateTree();
         }
 
@@ -197,55 +252,68 @@ namespace SquirrelVisualDisassembler {
         }
 
         private void OnChanged(object sender, FileSystemEventArgs e) {
-            if (string.Equals(Path.GetFullPath(CurrentFile.File.Path).TrimEnd(Path.PathSeparator),
-                Path.GetFullPath(e.FullPath).TrimEnd(Path.PathSeparator),
-                StringComparison.InvariantCultureIgnoreCase))
-                LoadFile(CurrentFile.File);
+            if (PathEquals(CurrentFile?.File.Path, e.FullPath))
+                LoadFile(CurrentFile!.File);
         }
 
         private async void OpenMenuOnClick(object? sender, RoutedEventArgs e) {
             if (await AskForNewDirectory()) UpdateTree();
+        }
+
+        private static bool PathEquals(string? left, string? right) => left != null && right != null && string.Equals(Path.GetFullPath(left).TrimEnd(Path.PathSeparator),
+            Path.GetFullPath(right).TrimEnd(Path.PathSeparator), StringComparison.InvariantCultureIgnoreCase);
+
+        private void ReloadAllMenuOnClick(object? sender, RoutedEventArgs e) {
+            UpdateTree();
+            CurrentFile = itemsFiles.Find(item => item.Path == CurrentFile?.File.Path)?.Binding;
+        }
+
+        private void ReloadCurrentMenuOnClick(object? sender, RoutedEventArgs e) {
+            Console.WriteLine(CurrentFile is null);
+            if (CurrentFile != null && itemsFiles.Find(item => item.Path == CurrentFile?.File.Path) is { } file) {
+                CurrentFile = LoadFile(file);
+            }
         }
     }
 
     public class MainWindowViewModel : INotifyPropertyChanged {
         private static MainWindowViewModel? instance;
         private List<Item> items;
-        private string disassemblyText = "Select a file to disassemble it";
-        private string decompileText = "Select a file to decompile it";
-        private string flowText = "Select a file to view its control flow";
+        private string statusText = "Idle.";
+        private Encoding currentEncoding = Encoding.UTF8;
+        private double progress;
+        private object lockDummy = new object();
         public static MainWindowViewModel Instance => instance ??= new MainWindowViewModel();
-        public string DisassemblyText {
-            get => disassemblyText;
-            set {
-                disassemblyText = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisassemblyText)));
-            }
-        }
-        public string DecompileText {
-            get => decompileText;
-            set {
-                decompileText = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DecompileText)));
-            }
-        }
-        public string FlowText {
-            get => flowText;
-            set {
-                flowText = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FlowText)));
-            }
-        }
         public List<Item> Items {
             get => items;
             set {
                 items = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Items)));
+                ChangeGuard(nameof(Items));
+            }
+        }
+        public double Progress {
+            get {
+                lock (lockDummy) return progress;
+            }
+            set {
+                lock (lockDummy) progress = value;
+                ChangeGuard(nameof(Progress));
+            }
+        }
+        public Encoding Encoding {
+            get => currentEncoding;
+            set {
+                currentEncoding = value;
+                ChangeGuard(nameof(Encoding));
             }
         }
         public event Action<int>? OnDisassemblyJumpClicked;
-        public Encoding Encoding => Encoding.UTF8;
         public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void ChangeGuard(string name) {
+            if (Dispatcher.UIThread.CheckAccess()) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+            else Dispatcher.UIThread.Post(() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)));
+        }
 
         public void DisassemblyJumpClick(int line) {
             OnDisassemblyJumpClicked?.Invoke(line);
@@ -254,41 +322,9 @@ namespace SquirrelVisualDisassembler {
 
     public class FunctionTextBinding {
         public FunctionPrototype Prototype { get; set; }
+        public string Disassembly { get; set; }
+        public string FlowGraph { get; set; }
+        public string Decompilation { get; set; }
         public FileItem File { get; set; }
-    }
-    
-    class ElementGenerator : VisualLineElementGenerator, IComparer<KeyValuePair<int, IControl>>
-    {
-        public List<KeyValuePair<int, IControl>> controls = new List<KeyValuePair<int, IControl>>();
-
-        /// <summary>
-        /// Gets the first interested offset using binary search
-        /// </summary>
-        /// <returns>The first interested offset.</returns>
-        /// <param name="startOffset">Start offset.</param>
-        public override int GetFirstInterestedOffset(int startOffset)
-        {
-            int pos = controls.BinarySearch(new KeyValuePair<int, IControl>(startOffset, null), this);
-            if (pos < 0)
-                pos = ~pos;
-            if (pos < controls.Count)
-                return controls[pos].Key;
-            else
-                return -1;
-        }
-
-        public override VisualLineElement ConstructElement(int offset)
-        {
-            int pos = controls.BinarySearch(new KeyValuePair<int, IControl>(offset, null!), this);
-            if (pos >= 0)
-                return new InlineObjectElement(0, controls[pos].Value);
-            else
-                return null!;
-        }
-
-        int IComparer<KeyValuePair<int, IControl>>.Compare(KeyValuePair<int, IControl> x, KeyValuePair<int, IControl> y)
-        {
-            return x.Key.CompareTo(y.Key);
-        }
     }
 }

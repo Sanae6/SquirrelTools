@@ -33,9 +33,7 @@ namespace SquirrelStuff.Graphing {
             Block root = graph.Root;
             Block? current = root;
             for (int ip = 0; ip < prototype.Instructions.Length;) {
-                // Instruction? prev = ip > 0 ? prototype.Instructions[ip - 1] : null;
                 FunctionPrototype.Instruction inst = prototype.Instructions[ip];
-                // FunctionPrototype.Instruction? next = ip < prototype.Instructions.Length - 1 ? prototype.Instructions[ip + 1] : null;
 
                 if (graph.HasBlock(ip)) {
                     Block block = graph.GetBlock(ip);
@@ -55,7 +53,6 @@ namespace SquirrelStuff.Graphing {
                 switch (inst.Opcode) {
                     case Opcodes.Jmp: {
                         if (address == ip) continue;
-                        // Console.WriteLine($"{ip} {inst.Opcode} n {address}");
                         Block block = graph.GetBlock(address, orIp);
                         current.Next = block;
                         current.Branch = null;
@@ -65,7 +62,6 @@ namespace SquirrelStuff.Graphing {
                     case Opcodes.JCmp:
                     case Opcodes.Jz: {
                         if (address == ip) continue;
-                        // Console.WriteLine($"{ip} {inst.Opcode} n {ip} b {address}");
                         Block nextBlock = graph.GetBlock(ip, ip);
                         Block branchBlock = graph.GetBlock(address, ip);
                         current.Next = nextBlock;
@@ -74,7 +70,11 @@ namespace SquirrelStuff.Graphing {
                         break;
                     }
                     case Opcodes.ForEach: {
-                        
+                        Block nextBlock = graph.GetBlock(ip, ip);
+                        Block branchBlock = graph.GetBlock(address, ip);
+                        current.Next = nextBlock;
+                        current.Branch = branchBlock;
+                        current = null;
                         break;
                     }
                     case Opcodes.Return: {
@@ -146,9 +146,9 @@ namespace SquirrelStuff.Graphing {
                         builder.AppendLine();
                         builder.Append($@"<TR><TD PORT=""L{i}"">{i.ToString().PadLeft(digits, '0')}</TD><TD>{curGraph.Prototype.Instructions[i].ToString(curGraph.Prototype, true, false)}</TD><TD PORT=""R{i}"">{
                             curGraph.Prototype.Instructions[i].ToString(curGraph.Prototype, false, true)
+                                .Replace("&", "&amp;")
                                 .Replace("<", "&lt;").Replace(">", "&gt;")
                                 // .Replace("[", "&#91;").Replace("]", "&#93;")
-                                .Replace("&", "&amp;")
                         }</TD></TR>");
                     }
                     builder.Append("</TABLE>>");

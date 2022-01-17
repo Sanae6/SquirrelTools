@@ -14,11 +14,20 @@
             <TextBlock Text="{Binding Path=Name}" ToolTip.Tip="{Binding Path=Path}" />
         </DataTemplate>
     </Window.DataTemplates>
-    <DockPanel>
-        <Menu DockPanel.Dock="Top" VerticalAlignment="Top">
-            <MenuItem Header="_Open" Click="OpenMenuOnClick"/>
+    <DockPanel LastChildFill="True">
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_Open" Click="OpenMenuOnClick" />
+            <MenuItem Header="_Reload">
+                <MenuItem Header="Reload _All" HotKey="Control+Alt+A" Click="ReloadAllMenuOnClick" />
+                <MenuItem Header="_Reload Current File" HotKey="Control+R" Click="ReloadCurrentMenuOnClick"/>
+            </MenuItem>
         </Menu>
-        <Grid Margin="10" VerticalAlignment="Stretch" ColumnDefinitions="2*,5*">
+        <DockPanel DockPanel.Dock="Top">
+            <Label HorizontalAlignment="Left" Content="{Binding StatusText}" />
+            <Label HorizontalAlignment="Center" Content="Shawarma 🙈"/>
+            <ProgressBar HorizontalAlignment="Right" ShowProgressText="True" Value="{Binding Progress}" Margin="0,0,10,0" />
+        </DockPanel>
+        <Grid Margin="10" ColumnDefinitions="2*,5*">
             <TreeView Grid.Column="0" Margin="0,0,10,0" Name="FileTree" Items="{Binding Items}"
                       SelectionChanged="FileTreeOnSelectedItemChanged" SelectionMode="Single" />
             <TabControl Grid.Column="1">
@@ -29,40 +38,34 @@
                     <!--          ScrollViewer.HorizontalScrollBarVisibility="Auto" /> -->
                     <Grid>
                         <avaloniaEdit:TextEditor
-                            Name = "DisassemblyEditor"
+                            Name="DisassemblyEditor"
                             FontFamily="Consolas"
                             SyntaxHighlighting="sqasm"
                             IsReadOnly="True"
                             VerticalScrollBarVisibility="Visible"
-                            HorizontalScrollBarVisibility="Auto"
-                            Encoding="{Binding Encoding}"
-                        />
+                            HorizontalScrollBarVisibility="Auto"/>
                     </Grid>
                 </TabItem>
                 <TabItem Header="Control Flow Graph">
                     <Grid>
                         <avaloniaEdit:TextEditor
-                            Name = "GraphEditor"
+                            Name="GraphEditor"
                             FontFamily="Consolas"
                             SyntaxHighlighting="sqasm"
                             IsReadOnly="True"
                             VerticalScrollBarVisibility="Visible"
-                            HorizontalScrollBarVisibility="Auto"
-                            Encoding="{Binding Encoding}"
-                        />
+                            HorizontalScrollBarVisibility="Auto" />
                     </Grid>
                 </TabItem>
                 <TabItem Header="(TODO) Decompiled">
                     <Grid>
                         <avaloniaEdit:TextEditor
-                            Name = "DecompileEditor"
+                            Name="DecompileEditor"
                             FontFamily="Consolas"
                             SyntaxHighlighting="sqasm"
                             IsReadOnly="True"
                             VerticalScrollBarVisibility="Visible"
-                            HorizontalScrollBarVisibility="Auto"
-                            Encoding="{Binding Encoding}"
-                        />
+                            HorizontalScrollBarVisibility="Auto" />
                     </Grid>
                 </TabItem>
             </TabControl>

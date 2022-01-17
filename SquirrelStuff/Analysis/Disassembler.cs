@@ -30,11 +30,11 @@ namespace SquirrelStuff.Analysis {
                         builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = {inst.Argument1 != 0}");
                         break;
                     case Opcodes.LoadFloat:
-                        builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = {inst.Argument1d}");
+                        builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = {inst.Argument1f}");
                         break;
                     case Opcodes.DLoad: // load two literals
                         builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = {prototype.Literals[inst.Argument1].ToString(false)}, ")
-                            .Append($"{prototype.GetStackName(inst.Argument2, inst.Position)} = {prototype.Literals[inst.Argument3].ToString(false)}");
+                               .Append($"{prototype.GetStackName(inst.Argument2, inst.Position)} = {prototype.Literals[inst.Argument3].ToString(false)}");
                         break;
                     case Opcodes.LoadNulls:
                         builder.Append($"{inst.Argument1} nulls starting at {inst.Argument0}");
@@ -144,6 +144,7 @@ namespace SquirrelStuff.Analysis {
                         break;
 
                     case Opcodes.NewObj:
+                        builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = ");
                         switch (inst.Argument3) {
                             case 0:
                                 builder.Append($"Table(InitialSize = {inst.Argument1})");
@@ -152,7 +153,7 @@ namespace SquirrelStuff.Analysis {
                                 builder.Append($"Array(ReservedSize = {inst.Argument1})");
                                 break;
                             case 2:
-                                builder.Append($"Class(BaseClass = {inst.Argument1}, Attributes = {inst.Argument2:X8})");
+                                builder.Append($"Class(BaseClass = {inst.Argument1}, Attributes = 0x{inst.Argument2:X2})");
                                 break;
                             default:
                                 builder.Append("Unknown type");
@@ -173,7 +174,7 @@ namespace SquirrelStuff.Analysis {
                                 builder.Append($"{inst.Argument1}");
                                 break;
                             case 3:
-                                builder.Append($"{inst.Argument1d}");
+                                builder.Append($"{inst.Argument1f}");
                                 break;
                             case 4:
                                 builder.Append($"{inst.Argument1 != 0}");
@@ -214,6 +215,13 @@ namespace SquirrelStuff.Analysis {
                             .Append($"{prototype.GetStackName(inst.Argument1, inst.Position)}[{prototype.GetStackName(inst.Argument2, inst.Position)}] <- ")
                             .Append($"{prototype.GetStackName(inst.Argument3, inst.Position)}");
                         if (inst.Argument0 != 0xFF) builder.Append(')');
+                        break;
+                    case Opcodes.NewSlotA:
+                        if ((inst.Argument0 & 0x2) != 0) builder.Append("static ");
+                        builder
+                            .Append($"{prototype.GetStackName(inst.Argument1, inst.Position)}[{prototype.GetStackName(inst.Argument2, inst.Position)}] = ")
+                            .Append($"{prototype.GetStackName(inst.Argument3, inst.Position)}");
+                        if ((inst.Argument0 & 0x1) != 0) builder.Append($" /* has attributes at {prototype.GetStackName(inst.Argument2 - 1, inst.Position)} */");
                         break;
                     case Opcodes.Set:
                         if (inst.Argument0 != 0xFF) builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = (");

@@ -140,8 +140,8 @@ namespace SquirrelStuff.Bytecode {
         public class Instruction {
             public int Position;
             public Opcodes Opcode;
-            public int Argument1;
-            public float Argument1d => BitConverter.ToSingle(BitConverter.GetBytes(Argument1));
+            public int Argument1; // todo long support
+            public float Argument1f => BitConverter.ToSingle(BitConverter.GetBytes(Argument1));// todo double support
             public byte Argument0;
             public byte Argument2;
             public byte Argument3;

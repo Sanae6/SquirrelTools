@@ -4,11 +4,16 @@ using SquirrelStuff.Graphing;
 
 namespace SquirrelStuff.Analysis {
     internal class AnalysisBlock : Expression {
-        public AnalysisBlock Next;
-        public AnalysisBlock Branch;
+        public AnalysisBlock? Next;
+        public AnalysisBlock? Branch;
         public List<AnalysisBlock> Parents = new List<AnalysisBlock>();
         public List<Expression> Expressions = new List<Expression>();
         public List<FunctionContext> Children = new List<FunctionContext>();
+        public readonly Block Block;
+
+        public AnalysisBlock(Block block) {
+            Block = block;
+        }
 
         public override string ToString(Expression parent, Decompiler decompiler) {
             StringBuilder builder = new StringBuilder();
@@ -49,5 +54,11 @@ namespace SquirrelStuff.Analysis {
         }
     }
 
-    internal class ReturnBlock : AnalysisBlock { }
+    internal class ReturnBlock : AnalysisBlock {
+        public ReturnBlock(Block block) : base(block) { }
+    }
+
+    internal class ForEachBlock {
+        
+    }
 }
