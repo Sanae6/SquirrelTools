@@ -22,9 +22,9 @@
                 <MenuItem Header="_Reload Current File" HotKey="Control+R" Click="ReloadCurrentMenuOnClick"/>
             </MenuItem>
         </Menu>
-        <DockPanel DockPanel.Dock="Top">
+        <DockPanel DockPanel.Dock="Top" >
             <Label HorizontalAlignment="Left" Content="{Binding StatusText}" />
-            <Label HorizontalAlignment="Center" Content="Shawarma 🙈"/>
+            <!-- <Label HorizontalAlignment="Center" Content="Shawarma 🙈"/> -->
             <ProgressBar HorizontalAlignment="Right" ShowProgressText="True" Value="{Binding Progress}" Margin="0,0,10,0" />
         </DockPanel>
         <Grid Margin="10" ColumnDefinitions="2*,5*">

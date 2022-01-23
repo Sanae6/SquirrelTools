@@ -17,7 +17,6 @@ using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.Highlighting;
 using AvaloniaEdit.Highlighting.Xshd;
-using AvaloniaEdit.Rendering;
 using SquirrelStuff.Analysis;
 using SquirrelStuff.Bytecode;
 using SquirrelStuff.Graphing;
@@ -51,7 +50,7 @@ namespace SquirrelVisualDisassembler {
         private const string DefaultTitle = "Squirrel 3.1 Disassembler";
         public string CurrentDirectory;
 
-        private SemaphoreSlim TreeSemaphore = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim TreeSemaphore = new SemaphoreSlim(1, 1);
 
         private MainWindowViewModel Model;
         private ControlFlowGraph CurrentGraph;

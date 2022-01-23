@@ -117,7 +117,7 @@ namespace SquirrelStuff.Graphing {
         }
 
         public static Graph GenerateGraph(ControlFlowGraph graph, int digits = -1) {
-            if (digits == -1) digits = graph.Prototype.MaxLineDigits().ToString().Length;
+            if (digits == -1) digits = graph.Prototype.MaxInstDigits().ToString().Length;
             Graph g = new Graph(graph.Prototype.Name.ToString());
 
             HashSet<Block> AllBlocks = new HashSet<Block>();
