@@ -24,6 +24,7 @@ namespace SquirrelStuff.Bytecode {
         public FunctionPrototype[] Functions;
 
         public int StackSize;
+        public int ActualStackSize => StackSize + Parameters.Length;
         public bool IsGenerator;
         public bool VarParams;
 
@@ -138,6 +139,19 @@ namespace SquirrelStuff.Bytecode {
 
         public string GetStackName(int location, int ip) {
             return GetStackNameObject(location, ip)?.ToString() ?? $"$stackVar{location}";
+        }
+
+        public bool HasNamedLocal(int sp, int ip) {
+            return GetLocalVar(sp, ip) is {Name: not null} || Parameters.ElementAtOrDefault(sp) is not null;
+        }
+
+        public LocalVar? GetLocal(int sp, int ip) {
+            return GetLocalVar(sp, ip) ?? (Parameters.ElementAtOrDefault(sp) is { } obj ? new LocalVar {
+                StartOp = 0,
+                EndOp = (uint) (Instructions.Length - 1),
+                Pos = (uint) sp,
+                Name = obj
+            } : null);
         }
 
         public class LocalVar {

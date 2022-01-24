@@ -8,7 +8,8 @@ using SquirrelStuff.Bytecode;
 using TableExpressionPair = System.Collections.Generic.KeyValuePair<Expression, Expression>;
 
 public abstract class Expression {
-    internal bool Used = false;
+    internal bool Used { get; set; }
+
     public abstract string ToString(Expression parent, Decompiler decompiler);
 }
 
@@ -38,15 +39,13 @@ public class LiteralExpression : Expression {
 public class LocalExpression : Expression {
     public readonly int Location;
     public readonly FunctionPrototype.LocalVar? Local;
-    private readonly int ip;
+    public bool FirstOccurence;
 
-    public LocalExpression(int location, FunctionPrototype.LocalVar? local, int instruction) {
+    public LocalExpression(int location, FunctionPrototype.LocalVar? local, bool firstOccurence) {
         Location = location;
         Local = local;
-        ip = instruction;
+        FirstOccurence = firstOccurence;
     }
-
-    public bool IsDefinition => Local?.StartsAt(ip) ?? false;
 
     public override string ToString(Expression parent, Decompiler decompiler) {
         return Local?.ToString() ?? $"$stackVar{Location}";
@@ -85,6 +84,10 @@ public class ArrayExpression : ContainerExpression {
     }
 
     public override string ToString(Expression parent, Decompiler decompiler) {
+        if (Pairs.Length == 0) {
+            return "[]";
+        }
+
         StringBuilder builder = new StringBuilder();
         builder.AppendLine("[");
         decompiler.IndentationLevel++;
@@ -115,16 +118,19 @@ public class TableExpression : ContainerExpression {
     }
 
     public override string ToString(Expression parent, Decompiler decompiler) {
+        if (Pairs.Length == 0) {
+            return "{}";
+        }
         StringBuilder builder = new StringBuilder();
 
-        builder.AppendLine("[");
+        builder.AppendLine("{");
         decompiler.IndentationLevel++;
         for (int i = 0; i < Pairs.Length; i++) {
             (Expression key, Expression value) = Pairs[i];
             builder.AppendLine($"{decompiler.Indentation}{key.ToString(this, decompiler)} = {value}{(i < Pairs.Length - 1 ? "," : "")}");
         }
 
-        builder.Append($"{decompiler.Indentation}]");
+        builder.Append($"{decompiler.Indentation}}}");
         decompiler.IndentationLevel--;
 
         return builder.ToString();
@@ -140,7 +146,7 @@ public class AccessorExpression : Expression {
     public readonly Expression Self;
     public readonly Expression Key;
 
-    private static Regex IdentifierMatch = new Regex("[a-zA-Z_][a-zA-Z0-9_]*");
+    private static readonly Regex IdentifierMatch = new Regex("[a-zA-Z_][a-zA-Z0-9_]*");
     private static bool ValidateIdentifier(string text) => IdentifierMatch.IsMatch(text);
 
     public override string ToString(Expression parent, Decompiler decompiler) {
@@ -215,7 +221,7 @@ public class AssignmentStatement : Statement {
     }
 
     public override string ToString(Expression parent, Decompiler decompiler)
-        => $"{(LeftSide is LocalExpression {IsDefinition: true} ? "local " : "")}{LeftSide.ToString(this, decompiler)} = {RightSide.ToString(this, decompiler)}";
+        => $"{(LeftSide is LocalExpression {FirstOccurence: true} ? "local " : "")}{LeftSide.ToString(this, decompiler)} = {RightSide.ToString(this, decompiler)}";
 }
 
 public class NewSlotStatement : Statement {
@@ -300,7 +306,8 @@ public enum Operator {
     CompareGreaterEqual,
     CompareLessEqual,
     CompareEqual,
-    CompareThreeWay
+    CompareThreeWay,
+    CompareExists
 }
 
 public class OperatorExpression : Expression {
@@ -334,6 +341,7 @@ public class OperatorExpression : Expression {
             Operator.CompareLessEqual => "<=",
             Operator.CompareEqual => "=",
             Operator.CompareThreeWay => "<=>",
+            Operator.CompareExists => "in",
             _ => throw new IndexOutOfRangeException()
         };
     }

@@ -92,7 +92,16 @@ namespace SquirrelVisualDisassembler {
         }
 
         private void FileTreeOnSelectedItemChanged(object? sender, SelectionChangedEventArgs e) {
-            if (e.AddedItems.Count == 1 && e.AddedItems[0] is FileItem {Binding: {} binding}) CurrentFile = binding;
+            if (e.AddedItems.Count == 1) {
+                if (e.AddedItems[0] is FileItem {Binding: {} binding}) CurrentFile = binding;
+                else if (e.AddedItems[0] is FileItem { Binding: null } item) {
+                    try {
+                        LoadFile(item);
+                    } catch {
+                        // ignore
+                    }
+                }
+            }
         }
 
         private FunctionTextBinding? LoadFile(FileItem item) {
@@ -162,23 +171,23 @@ namespace SquirrelVisualDisassembler {
                     Model.Items = ItemProvider.GetItems(CurrentDirectory);
                     extra?.Invoke();
                     itemsFiles = Flatten(Model.Items).ToList();
-                    Model.Progress = 0;
-                    double done = 0;
-                    // Console.WriteLine($"{files.Count} {100}");
-                    Task[] tasks = itemsFiles.Select(file => {
-                        // Thread.Sleep(50);
-                        return Task.Run(() => {
-                            try {
-                                // Console.WriteLine($"Loading {file.Name} {done}/{files.Count}");
-                                LoadFile(file);
-                            } finally {
-                                Model.Progress = 100.0 / itemsFiles.Count * ++done;
-                                // Console.WriteLine($"Done {file.Name} {done}/{files.Count}");
-                            }
-
-                        });
-                    }).ToArray();
-                    Task.WaitAll(tasks);
+                    // Model.Progress = 0;
+                    // double done = 0;
+                    // // Console.WriteLine($"{files.Count} {100}");
+                    // Task[] tasks = itemsFiles.Select(file => {
+                    //     // Thread.Sleep(50);
+                    //     return Task.Run(() => {
+                    //         try {
+                    //             // Console.WriteLine($"Loading {file.Name} {done}/{files.Count}");
+                    //             LoadFile(file);
+                    //         } finally {
+                    //             Model.Progress = 100.0 / itemsFiles.Count * ++done;
+                    //             // Console.WriteLine($"Done {file.Name} {done}/{files.Count}");
+                    //         }
+                    //
+                    //     });
+                    // }).ToArray();
+                    // Task.WaitAll(tasks);
                     Model.Progress = 100.0;
                 } finally {
                     TreeSemaphore.Release(1);

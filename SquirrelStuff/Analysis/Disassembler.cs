@@ -254,7 +254,7 @@ namespace SquirrelStuff.Analysis {
                         builder.Append(inst.Argument0 != 0xFF ? $"{prototype.GetStackName(inst.Argument1, inst.Position)}" : "$null");
                         break;
                     case Opcodes.Exists:
-                        builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = {prototype.GetStackName(inst.Argument1, inst.Position)}.exists({prototype.GetStackName(inst.Argument2, inst.Position)})");
+                        builder.Append($"{prototype.GetStackName(inst.Argument0, inst.Position)} = {prototype.GetStackName(inst.Argument2, inst.Position)} in ({prototype.GetStackName(inst.Argument1, inst.Position)})");
                         break;
                     default:
                         builder.Append($"({inst.Opcode:D}) - todo implement this opcode");
@@ -264,10 +264,9 @@ namespace SquirrelStuff.Analysis {
             return builder.ToString();
         }
 
-        public static string Disassemble(this FunctionPrototype prototype, string indent = "", bool showClosure = false, bool showLineJumps = true, int maxInstDigits = -1) {
+        public static string Disassemble(this FunctionPrototype prototype, string indent = "", bool showClosure = false, bool showLineJumps = true, int maxInstDigits = -1, int maxLineDigits = -1) {
             if (maxInstDigits < 0) maxInstDigits = prototype.MaxInstDigits().ToString().Length;
-            int maxLineDigits = prototype.MaxLineDigits().ToString().Length;
-            // Console.WriteLine($"{maxLineDigits} {prototype.Name}");
+            if (maxLineDigits < 0) maxLineDigits = prototype.MaxLineDigits().ToString().Length;
             StringBuilder builder = new StringBuilder();
             builder.Append($"function {prototype.Name}(");
             for (int i = 0; i < prototype.Parameters.Length; i++) {
@@ -294,7 +293,7 @@ namespace SquirrelStuff.Analysis {
                 ;
                 builder.Append($"{indent}{(ip++).ToString().PadLeft(maxInstDigits, '0')}    ");
                 if (inst.Opcode == Opcodes.Closure && showClosure)
-                    builder.AppendLine($"{inst.ToString(prototype, true, false),-12}{prototype.Functions[inst.Argument1].Disassemble(indent, showClosure, showLineJumps, maxInstDigits)}");
+                    builder.AppendLine($"{inst.ToString(prototype, true, false),-12}{prototype.Functions[inst.Argument1].Disassemble(indent, showClosure, showLineJumps, maxInstDigits, maxLineDigits)}");
                 else
                     builder.AppendLine(inst.ToString(prototype, true, true));
             }

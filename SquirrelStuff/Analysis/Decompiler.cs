@@ -26,7 +26,6 @@ namespace SquirrelStuff.Analysis {
         }
 
         private readonly ControlFlowGraph Graph;
-        private FunctionPrototype Prototype => Graph.Prototype;
         private FunctionContext RootContext;
         private (int, Expression)? lastStackExpression;
         private int ip, endIp;
@@ -38,17 +37,20 @@ namespace SquirrelStuff.Analysis {
 
         public static string Decompile(FunctionPrototype prototype) {
             ControlFlowGraph cfg = GraphGenerator.BuildControlFlowGraph(prototype);
-            Decompiler decompiler = new Decompiler(cfg);
+            Decompiler decompiler = new(cfg);
 
-            return decompiler.Decompile();
+            return decompiler.Decompile(decompiler.RootContext);
         }
 
-        private string Decompile() {
-            foreach (AnalysisBlock block in RootContext.AnalysisBlocks) {
-                DecompileBlock(block, RootContext);
-            }
+        private string Decompile(FunctionContext context) {
+            Expressionize(context);
+            return context.Root.ToString(null!, this);
+        }
 
-            return RootContext.Root.ToString(null!, this);
+        private void Expressionize(FunctionContext context) {
+            foreach (AnalysisBlock block in context.AnalysisBlocks) {
+                DecompileBlock(block, context);
+            }
         }
 
         private void DecompileBlock(AnalysisBlock analysisBlock, FunctionContext context) {
@@ -58,46 +60,51 @@ namespace SquirrelStuff.Analysis {
                 FunctionPrototype.Instruction inst = block.Instructions[ip];
                 switch (inst.Opcode) {
                     case Opcodes.Load:
-                        context.Update(inst.Argument0, new LiteralExpression(context.Prototype.Literals[inst.Argument1]));
+                        context.Update(inst.Argument0, inst, new LiteralExpression(context.Prototype.Literals[inst.Argument1]));
                         break;
                     case Opcodes.DLoad:
-                        context.Update(inst.Argument0, new LiteralExpression(context.Prototype.Literals[inst.Argument1]));
-                        context.Update(inst.Argument2, new LiteralExpression(context.Prototype.Literals[inst.Argument3]));
+                        context.Update(inst.Argument0, inst, new LiteralExpression(context.Prototype.Literals[inst.Argument1]));
+                        context.Update(inst.Argument2, inst, new LiteralExpression(context.Prototype.Literals[inst.Argument3]));
                         break;
                     case Opcodes.LoadBool:
-                        context.Update(inst.Argument0, new LiteralExpression(DecompObject.Bool(inst.Argument1 != 0)));
+                        context.Update(inst.Argument0, inst, new LiteralExpression(DecompObject.Bool(inst.Argument1 != 0)));
                         break;
                     case Opcodes.LoadInt:
-                        context.Update(inst.Argument0, new LiteralExpression(DecompObject.Int(inst.Argument1)));
+                        context.Update(inst.Argument0, inst, new LiteralExpression(DecompObject.Int(inst.Argument1)));
                         break;
                     case Opcodes.LoadFloat:
-                        context.Update(inst.Argument0, new LiteralExpression(DecompObject.Float(inst.Argument1f)));
+                        context.Update(inst.Argument0, inst, new LiteralExpression(DecompObject.Float(inst.Argument1f)));
                         break;
                     case Opcodes.LoadRoot:
-                        context.Update(inst.Argument0, new RootTableExpression());
+                        context.Update(inst.Argument0, inst, new RootTableExpression());
                         break;
                     case Opcodes.LoadNulls:
-                        context.Update(inst.Argument0, new LiteralExpression(DecompObject.Null()));
+                        context.Update(inst.Argument0, inst, new LiteralExpression(DecompObject.Null()));
+                        break;
+                    case Opcodes.Move:
+                        context.Update(inst.Argument0, inst, context.Take(inst.Argument1, inst)!);
                         break;
                     case Opcodes.NewObj:
                         switch (inst.Argument3) {
                             case 0:
-                                context.Update(inst.Argument0, new TableExpression(inst.Argument1));
+                                context.Update(inst.Argument0, inst, new TableExpression(inst.Argument1));
                                 break;
                             case 1:
-                                context.Update(inst.Argument0, new ArrayExpression(inst.Argument1));
+                                context.Update(inst.Argument0, inst, new ArrayExpression(inst.Argument1));
                                 break;
                             case 2:
                                 // builder.Append($"Class(BaseClass = {inst.Argument1}, Attributes = 0x{inst.Argument2:X2})");
                                 throw new NotImplementedException("todo classes 🙈");
-                                // break;
+                            // break;
                             default:
                                 throw new IndexOutOfRangeException($"There is no new object type case for {inst.Argument3}");
                         }
+
                         break;
                     case Opcodes.AppendArray: {
                         Expression self = context.Take(inst.Argument0, inst)!;
-                        if (self is ArrayExpression array) { // array is not full due to check from inside of Take
+                        if (self is ArrayExpression array) {
+                            // array is not full due to check from inside of Take
                             switch (inst.Argument2) {
                                 case 0:
                                     array.AddElement(context.Take(inst.Argument1, inst)!);
@@ -120,10 +127,10 @@ namespace SquirrelStuff.Analysis {
                         } else {
                             throw new IndexOutOfRangeException($"Cannot append onto non array element {self}");
                         }
+
                         break;
                     }
                     case Opcodes.NewSlotA: {
-                        
                         break;
                     }
                     case Opcodes.NewSlot: {
@@ -132,10 +139,17 @@ namespace SquirrelStuff.Analysis {
                         Expression value = context.Take(inst.Argument3, inst)!;
                         NewSlotStatement newSlot = new NewSlotStatement(new AccessorExpression(self, key), value);
                         if (inst.Argument0 != 0xFF) {
-                            context.Update(inst.Argument0, newSlot);
+                            context.Update(inst.Argument0, inst,newSlot);
                         } else {
                             context.Add(newSlot);
                         }
+
+                        break;
+                    }
+                    case Opcodes.Exists: {
+                        Expression self = context.Take(inst.Argument1, inst)!;
+                        Expression key = context.Take(inst.Argument2, inst)!;
+                        context.Update(inst.Argument0, inst, new BinaryExpression(key, new OperatorExpression(Operator.CompareExists), self));
                         break;
                     }
                     case Opcodes.Set: {
@@ -144,18 +158,26 @@ namespace SquirrelStuff.Analysis {
                         Expression value = context.Take(inst.Argument3, inst)!;
                         AssignmentStatement assignment = new AssignmentStatement(new AccessorExpression(self, key), value);
                         if (inst.Argument0 != 0xFF) {
-                            context.Update(inst.Argument0, assignment);
+                            context.Update(inst.Argument0, inst, assignment);
                         } else {
                             context.Add(assignment);
                         }
+
+                        break;
+                    }
+                    case Opcodes.Get:
+                    case Opcodes.GetK: {
+                        Expression key = inst.Opcode == Opcodes.GetK ? new LiteralExpression(context.Prototype.Literals[inst.Argument1]) : context.GetLocal(inst.Argument1, inst)!;
+                        Expression self = context.Take(inst.Argument2, inst)!;
+                        context.Update(inst.Argument0, inst, new AccessorExpression(self, key));
                         break;
                     }
                     case Opcodes.PrepCall:
                     case Opcodes.PrepCallK: {
                         Expression key = inst.Opcode == Opcodes.PrepCallK ? new LiteralExpression(context.Prototype.Literals[inst.Argument1]) : context.GetLocal(inst.Argument1, inst)!;
                         Expression self = context.Take(inst.Argument2, inst)!;
-                        context.Update(inst.Argument3, self);
-                        context.Update(inst.Argument0, new AccessorExpression(self, key));
+                        context.Update(inst.Argument3, inst, self);
+                        context.Update(inst.Argument0, inst, new AccessorExpression(self, key));
                         break;
                     }
                     case Opcodes.Call: {
@@ -164,13 +186,14 @@ namespace SquirrelStuff.Analysis {
                         for (int i = 1; i < inst.Argument3; i++) {
                             call.Arguments.Add(context.Take(inst.Argument2 + i, inst)!);
                         }
-                        if (inst.Argument0 != 0xFF) context.Update(inst.Argument0, call);
+
+                        if (inst.Argument0 != 0xFF) context.Update(inst.Argument0, inst, call);
                         else context.Add(call);
                         break;
                     }
                     case Opcodes.Jz: {
                         Expression expr = context.Take(inst.Argument0, inst) ?? throw new InvalidOperationException();
-                        if (expr is not BinaryExpression or UnaryExpression {Operation: {Operation: Operator.UnaryNot}})
+                        if (expr is not BinaryExpression or UnaryExpression { Operation: { Operation: Operator.UnaryNot } })
                             expr = new UnaryExpression(new OperatorExpression(Operator.UnaryNot), expr);
                         context.Add(new IfStatement(expr));
                         break;
@@ -181,6 +204,13 @@ namespace SquirrelStuff.Analysis {
                     case Opcodes.Return:
                         context.Add(new ReturnStatement(inst.Argument0 != 0xFF ? context.Take(inst.Argument1, inst) : null));
                         break;
+                    case Opcodes.Closure: {
+                        ControlFlowGraph subGraph = context.Graph.Closures.First(closure => closure.Item1 == ip).Item2;
+                        FunctionContext sub = new SubFunctionContext(subGraph, context);
+                        Expressionize(sub);
+                        context.Update(inst.Argument0, inst, sub.Root);
+                        break;
+                    }
                     default: throw new NotImplementedException($"Opcode {inst.Opcode} has no decompile case implemented yet");
                 }
             }
